@@ -1,0 +1,1 @@
+{"version":3,"file":"peer-server-emisor-receptor.js","sourceRoot":"","sources":["../../../../src/model/peer-server-emisor-receptor.ts"],"names":[],"mappings":"AAIA,MAAM,OAAO,wBAAwB;IAEnC,YACS,MAAiB,EACjB,QAAmB,EACnB,UAAuB,EACvB,UAAuB;QAHvB,WAAM,GAAN,MAAM,CAAW;QACjB,aAAQ,GAAR,QAAQ,CAAW;QACnB,eAAU,GAAV,UAAU,CAAa;QACvB,eAAU,GAAV,UAAU,CAAa;IAEhC,CAAC;CACF"}
