@@ -11,7 +11,7 @@ export class Routes {
   upload: any;
   path = "/home/cony/angular/instituto-bd/public/archivos/pptx";
 
-  constructor(private io: any, private room: Room[]) {
+  constructor(private io: any, private rooms: {}) {
     this.router = this.express.Router();
     this.storage = this.multer.diskStorage({
       destination: (req: any, file: any, cb: any) => {
@@ -20,7 +20,7 @@ export class Routes {
       filename: (req: any, file: any, cb: any) => {
         cb(
           null,
-          file.originalname.replace(" ", "").replace("(", "").replace(")", "")
+          file.originalname.replace(/ /g, "-").replace("(", "").replace(")", "")
         );
       },
     });
@@ -37,26 +37,23 @@ export class Routes {
   }
 
   postFiles(req: any, res: any, next: any) {
-    console.log('ROOM');
-    console.log(this.room);
-    console.log(this.room[req.body.id]);
-    // if (
-    //   req.file !== undefined &&
-    //   req.file.originalname !== undefined &&
-    //   req.body.id !== undefined
-    // ) {
-    //   const nombreExtension = req.file.originalname
-    //     .replace(" ", "")
-    //     .replace("(", "")
-    //     .replace(")", "");
-    //   const nombre =
-    //     nombreExtension.indexOf(".pptx") > 0
-    //       ? nombreExtension.replace(".pptx", "")
-    //       : nombreExtension.indexOf(".ppt") > 0
-    //       ? nombreExtension.replace(".ppt", "")
-    //       : nombreExtension;
-    //   this.addConverter(req, res, nombreExtension, nombre);
-    // }
+    if (
+      req.file !== undefined &&
+      req.file.originalname !== undefined &&
+      req.body.id !== undefined
+    ) {
+      const nombreExtension = req.file.originalname
+        .replace(/ /g, "-")
+        .replace("(", "")
+        .replace(")", "");
+      const nombre =
+        nombreExtension.indexOf(".pptx") > 0
+          ? nombreExtension.replace(".pptx", "")
+          : nombreExtension.indexOf(".ppt") > 0
+          ? nombreExtension.replace(".ppt", "")
+          : nombreExtension;
+      this.addConverter(req, res, nombreExtension, nombre);
+    }
   }
   get(req: any, res: any) {}
 
@@ -66,10 +63,11 @@ export class Routes {
       this.path + "/" + req.body.id + "/" + nombre + "/" + nombre,
       async (err: any) => {
         if (err) {
+          console.log(err);
           res.json({ success: false, file: { nombre, paginas: 0 } });
         } else {
           child.exec(
-            "ls " + this.path + "/" + nombre + " | wc -l",
+            "ls " + this.path + "/" + req.body.id + "/" + nombre + " | wc -l",
             (err: any, stdout: any, stderr: any) => {
               if (err) {
                 res.json({ success: false });
@@ -78,19 +76,18 @@ export class Routes {
                   nombre,
                   0,
                   0,
-                  1,
                   0,
-                  stdout.replace(/\n|\r/g, "")
+                  0,
+                  parseInt(stdout.replace(/\n|\r/g, "")) - 1,
+                  JSON.parse(req.body.integrantes),
+                  JSON.parse(req.body.permisos).todos
                 );
                 res.json({
                   success: true,
                   file: ppt,
                 });
-                if (this.room[req.body.id].ppts === undefined) {
-                  this.room[req.body.id].ppts = {};
-                }
-                this.room[req.body.id].ppts[ppt.nombre] = ppt;
-                this.io.in(this.room[req.body.id].id).emit("archivoPpt", ppt);
+                this.rooms[req.body.id].ppts[ppt.nombre] = ppt;
+                this.io.in(this.rooms[req.body.id].id).emit("archivoPpt", ppt);
               }
             }
           );

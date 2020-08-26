@@ -1,4 +1,3 @@
-import { Usuario } from './usuario';
 export class PPT {
   constructor(
     public nombre: string,
@@ -7,6 +6,7 @@ export class PPT {
     public pagSig: number,
     public pagAct: number,
     public pagTot: number,
-    public integrantes?: Usuario []
+    public integrantes?: {},
+    public todos?: boolean
   ) {}
 }

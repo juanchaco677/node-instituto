@@ -15,15 +15,22 @@ class Server {
         this.io = require("socket.io")(this.http);
         this.publicDir = `${__dirname}/src`;
         this.port = process.env.PORT || 4444;
-        this.rooms = [];
+        this.rooms = {};
+        this.previousId = { id: "" };
     }
+    /**
+     * función que inicia el servidor
+     */
     init() {
+        /**
+         * inicia la escucha de express en una ip y puerto
+         */
         this.http.listen(this.port, "192.168.0.17", () => {
             console.log("Iniciando Express y Socket.IO en localhost:%d", this.port);
         });
-        this.listen();
-        this.routes = new routes_1.Routes(this.io, this.rooms);
-        this.addCorsRoute();
+        this.listen(); // inicia la escucha de hilos socket io
+        this.routes = new routes_1.Routes(this.io, this.rooms); //rutas
+        this.addCorsRoute(); // adiciona a las rutas los cors
     }
     addCorsRoute() {
         var originsWhitelist = [
@@ -40,7 +47,7 @@ class Server {
         this.app.use(this.cors(corsOptions), this.routes.router);
     }
     buscarUsuario(id, usuario, socket) {
-        const roomS = this.buscarRoom(id);
+        const roomS = this.getRoom(id);
         if (roomS !== null) {
             for (const user of roomS.usuarios) {
                 if (user.id === usuario.id) {
@@ -53,33 +60,36 @@ class Server {
         }
         return null;
     }
-    buscarRoom(id) {
-        for (const room of this.rooms) {
-            if (room.id === id) {
-                return room;
-            }
-        }
-        return null;
+    getRoom(id) {
+        return this.rooms[id];
     }
+    /**
+     * función que crea los room de acuerdo al id
+     * @param id
+     */
     createRoom(id) {
         const room = new room_1.Room(id, [], [], {}, {}, {});
-        this.rooms.push(room);
+        this.rooms[id] = room;
         return room;
     }
-    livingRoom(socket, previousId) {
+    /**
+     * función que contiene la logica para el ingreso de usuarios a los room
+     * @param socket
+     */
+    livingRoom(socket) {
         socket.on("livingRoom", (data) => {
             if (data.usuario.rol.tipo === "ES" || data.usuario.rol.tipo === "PR") {
                 const id = data.programacion.id +
                     "" +
                     data.programacion.asig_profe_asig.salon.id;
-                let room = this.buscarRoom(id);
+                let room = this.getRoom(id);
                 if (util_1.Util.empty(room)) {
                     room = this.createRoom(id);
                 }
                 data.usuario.socket = socket.id;
                 const bUsuario = this.buscarUsuario(id, data.usuario, socket);
                 if (!util_1.Util.empty(bUsuario)) {
-                    this.safeJoin(socket, id, previousId);
+                    this.safeJoin(socket, id);
                     const emiRecep = {};
                     const emiRecepDesktop = {};
                     for (const key in room.peerServerEmisorReceptor) {
@@ -96,27 +106,17 @@ class Server {
                         id: room.id,
                         usuario: data.usuario,
                         chat: room.chat,
+                        ppts: room.ppts,
                         peerServerEmisorReceptor: emiRecep,
                         peerServerEmisorReceptorDesktop: emiRecepDesktop,
                     });
                     socket.emit("room", room);
-                    // for (const key in room.peerServerEmisorReceptor) {
-                    //   if (data.usuario.id === room.peerServerEmisorReceptor[key].usuario1.id) {
-                    //     this.io.to(room.peerServerEmisorReceptor[key].usuario2.socket).emit("refreshUsuario", true);
-                    //   } else {
-                    //     if (data.usuario.id === room.peerServerEmisorReceptor[key].usuario2.id) {
-                    //       this.io
-                    //         .to(room.peerServerEmisorReceptor[key].usuario1.socket)
-                    //         .emit("refreshUsuario", true);
-                    //     }
-                    //   }
-                    // }
                 }
                 else {
                     if (room !== null) {
                         data.usuario.socket = socket.id;
                         room.usuarios.push(data.usuario);
-                        this.safeJoin(socket, id, previousId);
+                        this.safeJoin(socket, id);
                         const emiRecep = {};
                         const emiRecepDesktop = {};
                         for (const element of room.usuarios) {
@@ -133,6 +133,7 @@ class Server {
                             id: room.id,
                             usuario: data.usuario,
                             chat: room.chat,
+                            ppts: room.ppts,
                             peerServerEmisorReceptor: emiRecep,
                             peerServerEmisorReceptorDesktop: emiRecepDesktop,
                         });
@@ -142,68 +143,84 @@ class Server {
             }
         });
     }
-    safeJoin(socket, id, previousId) {
-        socket.leave(previousId.id);
+    /**
+     * función para salir y entrar a una sala room
+     * @param socket
+     * @param id
+     */
+    safeJoin(socket, id) {
+        socket.leave(this.previousId.id);
         socket.join(id);
-        previousId.id = id;
+        this.previousId.id = id;
     }
+    /**
+     * función principal para iniciar la escucha socket io
+     */
     listen() {
         this.io.on("connection", (socket) => {
-            let previousId = { id: "" };
-            this.livingRoom(socket, previousId);
-            // this.answer(socket, previousId);
-            this.connectionPeer(socket, previousId);
+            this.livingRoom(socket);
+            this.connectionPeer(socket);
+            this.paginacionPPT(socket);
         });
     }
-    connectionPeer(socket, previousId) {
+    /**
+     * hilos de escucha para las conexiones rtc peer
+     * @param socket
+     */
+    connectionPeer(socket) {
         socket.on("addIceCandidate", (data) => {
             const id = data.id;
-            let room = this.buscarRoom(id);
+            let room = this.getRoom(id);
             if (util_1.Util.empty(room)) {
                 room = this.createRoom(id);
             }
-            this.safeJoin(socket, id, previousId);
-            this.io.to(data.usuarioOrigen.socket).emit("addIceCandidate", data);
+            this.safeJoin(socket, id);
+            socket.to(data.usuarioOrigen.socket).emit("addIceCandidate", data);
         });
         socket.on("createAnswer", (data) => {
             const id = data.id;
-            let room = this.buscarRoom(id);
+            let room = this.getRoom(id);
             if (util_1.Util.empty(room)) {
                 room = this.createRoom(id);
             }
-            this.safeJoin(socket, id, previousId);
-            this.io.to(data.usuarioDestino.socket).emit("createAnswer", data);
+            this.safeJoin(socket, id);
+            socket.to(data.usuarioDestino.socket).emit("createAnswer", data);
         });
         socket.on("sendAnswer", (data) => {
             const id = data.id;
-            let room = this.buscarRoom(id);
+            let room = this.getRoom(id);
             if (util_1.Util.empty(room)) {
                 room = this.createRoom(id);
             }
-            this.safeJoin(socket, id, previousId);
-            this.io.to(data.usuarioDestino.socket).emit("sendAnswer", data);
+            this.safeJoin(socket, id);
+            socket.to(data.usuarioDestino.socket).emit("sendAnswer", data);
         });
         socket.on("connectStateS", (data) => {
             const id = data.id;
-            let room = this.buscarRoom(id);
+            let room = this.getRoom(id);
             if (util_1.Util.empty(room)) {
                 room = this.createRoom(id);
             }
-            this.safeJoin(socket, id, previousId);
-            this.io.to(data.usuarioOrigen.socket).emit("connectState", {
+            this.safeJoin(socket, id);
+            socket.to(data.usuarioOrigen.socket).emit("connectState", {
                 peerServerEmisorReceptor: data.peerServerEmisorReceptor,
                 peerServerEmisorReceptorDesktop: data.peerServerEmisorReceptorDesktop,
             });
         });
     }
-    answer(socket, previousId) {
-        socket.on("answer", (data) => {
-            const id = data.programacion.id + "" + data.programacion.asig_profe_asig.salon.id;
-            this.safeJoin(socket, id, previousId);
-            const usuarioAux = this.buscarUsuario(id, data.usuario);
-            if (usuarioAux !== null && usuarioAux.socket !== null) {
-                this.io.to(usuarioAux.socket).emit("answer", data.peer);
+    /**
+     * hilos de escucha para las conexiones rtc peer
+     * @param socket
+     */
+    paginacionPPT(socket) {
+        socket.on("recibePaginationS", (data) => {
+            const id = data.id;
+            let room = this.getRoom(id);
+            if (util_1.Util.empty(room)) {
+                room = this.createRoom(id);
             }
+            this.safeJoin(socket, id);
+            socket.broadcast.emit("recibePaginationC", data);
         });
     }
 }

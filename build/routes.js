@@ -5,9 +5,9 @@ const tslib_1 = require("tslib");
 const ppt_1 = require("./src/model/ppt");
 const child = require("child_process");
 class Routes {
-    constructor(io, room) {
+    constructor(io, rooms) {
         this.io = io;
-        this.room = room;
+        this.rooms = rooms;
         this.express = require("express");
         this.ppt2png = require("ppt2png");
         this.multer = require("multer");
@@ -18,7 +18,7 @@ class Routes {
                 cb(null, this.path);
             },
             filename: (req, file, cb) => {
-                cb(null, file.originalname.replace(" ", "").replace("(", "").replace(")", ""));
+                cb(null, file.originalname.replace(/ /g, "-").replace("(", "").replace(")", ""));
             },
         });
         this.upload = this.multer({ storage: this.storage });
@@ -28,49 +28,41 @@ class Routes {
             .post(this.upload.single("file-ppt"), (req, res, next) => this.postFiles(req, res, next));
     }
     postFiles(req, res, next) {
-        console.log('ROOM');
-        console.log(this.room);
-        console.log(this.room[req.body.id]);
-        // if (
-        //   req.file !== undefined &&
-        //   req.file.originalname !== undefined &&
-        //   req.body.id !== undefined
-        // ) {
-        //   const nombreExtension = req.file.originalname
-        //     .replace(" ", "")
-        //     .replace("(", "")
-        //     .replace(")", "");
-        //   const nombre =
-        //     nombreExtension.indexOf(".pptx") > 0
-        //       ? nombreExtension.replace(".pptx", "")
-        //       : nombreExtension.indexOf(".ppt") > 0
-        //       ? nombreExtension.replace(".ppt", "")
-        //       : nombreExtension;
-        //   this.addConverter(req, res, nombreExtension, nombre);
-        // }
+        if (req.file !== undefined &&
+            req.file.originalname !== undefined &&
+            req.body.id !== undefined) {
+            const nombreExtension = req.file.originalname
+                .replace(/ /g, "-")
+                .replace("(", "")
+                .replace(")", "");
+            const nombre = nombreExtension.indexOf(".pptx") > 0
+                ? nombreExtension.replace(".pptx", "")
+                : nombreExtension.indexOf(".ppt") > 0
+                    ? nombreExtension.replace(".ppt", "")
+                    : nombreExtension;
+            this.addConverter(req, res, nombreExtension, nombre);
+        }
     }
     get(req, res) { }
     addConverter(req, res, nombreExtension, nombre) {
         this.ppt2png(this.path + "/" + nombreExtension, this.path + "/" + req.body.id + "/" + nombre + "/" + nombre, (err) => tslib_1.__awaiter(this, void 0, void 0, function* () {
             if (err) {
+                console.log(err);
                 res.json({ success: false, file: { nombre, paginas: 0 } });
             }
             else {
-                child.exec("ls " + this.path + "/" + nombre + " | wc -l", (err, stdout, stderr) => {
+                child.exec("ls " + this.path + "/" + req.body.id + "/" + nombre + " | wc -l", (err, stdout, stderr) => {
                     if (err) {
                         res.json({ success: false });
                     }
                     else {
-                        const ppt = new ppt_1.PPT(nombre, 0, 0, 1, 0, stdout.replace(/\n|\r/g, ""));
+                        const ppt = new ppt_1.PPT(nombre, 0, 0, 0, 0, parseInt(stdout.replace(/\n|\r/g, "")) - 1, JSON.parse(req.body.integrantes), JSON.parse(req.body.permisos).todos);
                         res.json({
                             success: true,
                             file: ppt,
                         });
-                        if (this.room[req.body.id].ppts === undefined) {
-                            this.room[req.body.id].ppts = {};
-                        }
-                        this.room[req.body.id].ppts[ppt.nombre] = ppt;
-                        this.io.in(this.room[req.body.id].id).emit("archivoPpt", ppt);
+                        this.rooms[req.body.id].ppts[ppt.nombre] = ppt;
+                        this.io.in(this.rooms[req.body.id].id).emit("archivoPpt", ppt);
                     }
                 });
             }
