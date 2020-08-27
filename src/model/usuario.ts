@@ -13,7 +13,8 @@ export class Usuario {
       public foto?: string,
       public sex?: string,
       public rol?: Rol,
-      public socket?: any
+      public socket?: any,
+      public color?: string
     ) {
     }
   }

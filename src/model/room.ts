@@ -5,7 +5,7 @@ import { Usuario } from './usuario';
 export class Room{
     constructor(
         public id: string,
-        public usuarios: Usuario[],
+        public usuarios: {},
         public chat: Chat[],
         public ppts?: {}, 
         public peerServerEmisorReceptor?: {},

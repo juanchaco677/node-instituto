@@ -16,7 +16,25 @@ class Server {
         this.publicDir = `${__dirname}/src`;
         this.port = process.env.PORT || 4444;
         this.rooms = {};
-        this.previousId = { id: "" };
+        this.colores = {
+            1: "#99b433",
+            2: "#00a300",
+            3: "#1e7145",
+            4: "#ff0097",
+            5: "#9f00a7",
+            6: "#7e3878",
+            7: "#603cba",
+            8: "#1d1d1d",
+            9: "#00aba9",
+            10: "#eff4ff",
+            11: "#2d89ef",
+            12: "#2b5797",
+            13: "#ffc40d",
+            14: "#e3a21a",
+            15: "#da532c",
+            16: "#ee1111",
+            17: "#b91d47",
+        };
     }
     /**
      * función que inicia el servidor
@@ -49,12 +67,12 @@ class Server {
     buscarUsuario(id, usuario, socket) {
         const roomS = this.getRoom(id);
         if (roomS !== null) {
-            for (const user of roomS.usuarios) {
-                if (user.id === usuario.id) {
+            for (const key in roomS.usuarios) {
+                if (roomS.usuarios[key].id === usuario.id) {
                     if (!util_1.Util.empty(socket)) {
-                        user.socket = socket.id;
+                        roomS.usuarios[key].socket = socket.id;
                     }
-                    return user;
+                    return roomS.usuarios[key];
                 }
             }
         }
@@ -68,7 +86,7 @@ class Server {
      * @param id
      */
     createRoom(id) {
-        const room = new room_1.Room(id, [], [], {}, {}, {});
+        const room = new room_1.Room(id, {}, [], {}, {}, {});
         this.rooms[id] = room;
         return room;
     }
@@ -76,7 +94,7 @@ class Server {
      * función que contiene la logica para el ingreso de usuarios a los room
      * @param socket
      */
-    livingRoom(socket) {
+    livingRoom(socket, idAntes) {
         socket.on("livingRoom", (data) => {
             if (data.usuario.rol.tipo === "ES" || data.usuario.rol.tipo === "PR") {
                 const id = data.programacion.id +
@@ -87,9 +105,10 @@ class Server {
                     room = this.createRoom(id);
                 }
                 data.usuario.socket = socket.id;
+                data.usuario.color = this.colores[Math.floor(Math.random() * 17 + 1)];
                 const bUsuario = this.buscarUsuario(id, data.usuario, socket);
                 if (!util_1.Util.empty(bUsuario)) {
-                    this.safeJoin(socket, id);
+                    this.safeJoin(socket, idAntes, id);
                     const emiRecep = {};
                     const emiRecepDesktop = {};
                     for (const key in room.peerServerEmisorReceptor) {
@@ -115,18 +134,19 @@ class Server {
                 else {
                     if (room !== null) {
                         data.usuario.socket = socket.id;
-                        room.usuarios.push(data.usuario);
-                        this.safeJoin(socket, id);
+                        data.usuario.color = this.colores[Math.floor(Math.random() * 17 + 1)];
+                        room.usuarios[data.usuario.id] = data.usuario;
+                        this.safeJoin(socket, idAntes, id);
                         const emiRecep = {};
                         const emiRecepDesktop = {};
-                        for (const element of room.usuarios) {
-                            if (element.id !== data.usuario.id) {
-                                let newObject = new peer_server_emisor_receptor_1.PeerServerEmisorReceptor(element, data.usuario, null, null, new video_boton_1.VideoBoton(false, false, false, false));
-                                let newObjectDesktop = new peer_server_emisor_receptor_1.PeerServerEmisorReceptor(element, data.usuario, null, null, new video_boton_1.VideoBoton(false, false, false, false));
-                                emiRecep["P" + data.usuario.id + "" + element.id] = newObject;
-                                emiRecepDesktop["P" + data.usuario.id + "" + element.id] = newObjectDesktop;
-                                room.peerServerEmisorReceptor["P" + data.usuario.id + "" + element.id] = newObject;
-                                room.peerServerEmisorReceptorDesktop["P" + data.usuario.id + "" + element.id] = newObjectDesktop;
+                        for (const key in room.usuarios) {
+                            if (room.usuarios[key].id !== data.usuario.id) {
+                                let newObject = new peer_server_emisor_receptor_1.PeerServerEmisorReceptor(room.usuarios[key], data.usuario, null, null, new video_boton_1.VideoBoton(false, false, false, false));
+                                let newObjectDesktop = new peer_server_emisor_receptor_1.PeerServerEmisorReceptor(room.usuarios[key], data.usuario, null, null, new video_boton_1.VideoBoton(false, false, false, false));
+                                emiRecep["P" + data.usuario.id + "" + room.usuarios[key].id] = newObject;
+                                emiRecepDesktop["P" + data.usuario.id + "" + room.usuarios[key].id] = newObjectDesktop;
+                                room.peerServerEmisorReceptor["P" + data.usuario.id + "" + room.usuarios[key].id] = newObject;
+                                room.peerServerEmisorReceptorDesktop["P" + data.usuario.id + "" + room.usuarios[key].id] = newObjectDesktop;
                             }
                         }
                         socket.broadcast.emit("addUsuario", {
@@ -148,60 +168,42 @@ class Server {
      * @param socket
      * @param id
      */
-    safeJoin(socket, id) {
-        socket.leave(this.previousId.id);
+    safeJoin(socket, idAntes, id) {
+        socket.leave(idAntes);
         socket.join(id);
-        this.previousId.id = id;
+        idAntes = id;
     }
     /**
      * función principal para iniciar la escucha socket io
      */
     listen() {
         this.io.on("connection", (socket) => {
-            this.livingRoom(socket);
-            this.connectionPeer(socket);
-            this.paginacionPPT(socket);
+            const idAntes = "";
+            this.livingRoom(socket, idAntes);
+            this.connectionPeer(socket, idAntes);
+            this.paginacionPPT(socket, idAntes);
+            this.chatMessage(socket, idAntes);
         });
     }
     /**
      * hilos de escucha para las conexiones rtc peer
      * @param socket
      */
-    connectionPeer(socket) {
+    connectionPeer(socket, idAntes) {
         socket.on("addIceCandidate", (data) => {
-            const id = data.id;
-            let room = this.getRoom(id);
-            if (util_1.Util.empty(room)) {
-                room = this.createRoom(id);
-            }
-            this.safeJoin(socket, id);
+            this.safeJoin(socket, idAntes, data.id);
             socket.to(data.usuarioOrigen.socket).emit("addIceCandidate", data);
         });
         socket.on("createAnswer", (data) => {
-            const id = data.id;
-            let room = this.getRoom(id);
-            if (util_1.Util.empty(room)) {
-                room = this.createRoom(id);
-            }
-            this.safeJoin(socket, id);
+            this.safeJoin(socket, idAntes, data.id);
             socket.to(data.usuarioDestino.socket).emit("createAnswer", data);
         });
         socket.on("sendAnswer", (data) => {
-            const id = data.id;
-            let room = this.getRoom(id);
-            if (util_1.Util.empty(room)) {
-                room = this.createRoom(id);
-            }
-            this.safeJoin(socket, id);
+            this.safeJoin(socket, idAntes, data.id);
             socket.to(data.usuarioDestino.socket).emit("sendAnswer", data);
         });
         socket.on("connectStateS", (data) => {
-            const id = data.id;
-            let room = this.getRoom(id);
-            if (util_1.Util.empty(room)) {
-                room = this.createRoom(id);
-            }
-            this.safeJoin(socket, id);
+            this.safeJoin(socket, idAntes, data.id);
             socket.to(data.usuarioOrigen.socket).emit("connectState", {
                 peerServerEmisorReceptor: data.peerServerEmisorReceptor,
                 peerServerEmisorReceptorDesktop: data.peerServerEmisorReceptorDesktop,
@@ -212,15 +214,22 @@ class Server {
      * hilos de escucha para las conexiones rtc peer
      * @param socket
      */
-    paginacionPPT(socket) {
+    paginacionPPT(socket, idAntes) {
         socket.on("recibePaginationS", (data) => {
-            const id = data.id;
-            let room = this.getRoom(id);
-            if (util_1.Util.empty(room)) {
-                room = this.createRoom(id);
-            }
-            this.safeJoin(socket, id);
-            socket.broadcast.emit("recibePaginationC", data);
+            this.safeJoin(socket, idAntes, data.id);
+            socket.broadcast.emit("recibePaginationC", data.ppt);
+        });
+        socket.on("eliminarPPTS", (data) => {
+            delete this.rooms[data.id].ppts[data.key];
+            this.safeJoin(socket, idAntes, data.id);
+            socket.broadcast.emit("eliminarPPTC", data.ppt);
+        });
+    }
+    chatMessage(socket, idAntes) {
+        socket.on("chatMessageS", (data) => {
+            this.safeJoin(socket, idAntes, data.id);
+            this.rooms[data.id].chat.push(data.chat);
+            socket.emit("chatMessageC", data);
         });
     }
 }

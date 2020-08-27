@@ -8,7 +8,6 @@ class Main {
     }
     main() {
         this.server.init();
-        this.server.listen();
     }
 }
 exports.Main = Main;

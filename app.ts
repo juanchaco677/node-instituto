@@ -5,7 +5,6 @@ export class Main{
 
     main(){
         this.server.init();
-        this.server.listen();
     }
 }
 
