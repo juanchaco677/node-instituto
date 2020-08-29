@@ -5,6 +5,7 @@ export class VideoBoton {
     public audio?: boolean,
     public latencia?: boolean,
     public desktop?: boolean,
+    public mano?: boolean,
   ) {
   }
 }

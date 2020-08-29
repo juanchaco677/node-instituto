@@ -2,7 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.Usuario = void 0;
 class Usuario {
-    constructor(email, id, nombre, nombre_uno, nombre_dos, apellido_uno, apellido_dos, tipo, cedula, foto, sex, rol, socket, color) {
+    constructor(email, id, nombre, nombre_uno, nombre_dos, apellido_uno, apellido_dos, tipo, cedula, foto, sex, rol, socket, color, boton) {
         this.email = email;
         this.id = id;
         this.nombre = nombre;
@@ -17,6 +17,7 @@ class Usuario {
         this.rol = rol;
         this.socket = socket;
         this.color = color;
+        this.boton = boton;
     }
 }
 exports.Usuario = Usuario;

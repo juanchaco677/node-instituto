@@ -1,3 +1,4 @@
+import { VideoBoton } from './video-boton';
 import { Rol } from "./rol";
 export class Usuario { 
     constructor(
@@ -14,7 +15,8 @@ export class Usuario {
       public sex?: string,
       public rol?: Rol,
       public socket?: any,
-      public color?: string
+      public color?: string,
+      public boton?: VideoBoton
     ) {
     }
   }

@@ -115,13 +115,15 @@ class Server {
                         if (room.peerServerEmisorReceptor[key].usuario1.id ===
                             data.usuario.id ||
                             room.peerServerEmisorReceptor[key].usuario2.id === data.usuario.id) {
-                            let newObject = new peer_server_emisor_receptor_1.PeerServerEmisorReceptor(room.peerServerEmisorReceptor[key].usuario1, room.peerServerEmisorReceptor[key].usuario2, null, null, new video_boton_1.VideoBoton(false, false, false, false));
-                            let newObjectDesktop = new peer_server_emisor_receptor_1.PeerServerEmisorReceptor(room.peerServerEmisorReceptor[key].usuario1, room.peerServerEmisorReceptor[key].usuario2, null, null, new video_boton_1.VideoBoton(false, false, false, false));
+                            let newObject = new peer_server_emisor_receptor_1.PeerServerEmisorReceptor(room.peerServerEmisorReceptor[key].usuario1, room.peerServerEmisorReceptor[key].usuario2, null, null, new video_boton_1.VideoBoton(false, false, false, false, false));
+                            let newObjectDesktop = new peer_server_emisor_receptor_1.PeerServerEmisorReceptor(room.peerServerEmisorReceptor[key].usuario1, room.peerServerEmisorReceptor[key].usuario2, null, null, new video_boton_1.VideoBoton(false, false, false, false, false));
                             emiRecep[key] = newObject;
                             emiRecepDesktop[key] = newObjectDesktop;
                         }
                     }
-                    socket.broadcast.emit("addUsuario", {
+                    let boton = this.rooms[id].usuarios[data.usuario.id].boton;
+                    this.rooms[id].usuarios[data.usuario.id].boton = new video_boton_1.VideoBoton(false, false, false, false, boton.mano);
+                    socket.to(id).emit("addUsuario", {
                         id: room.id,
                         usuario: data.usuario,
                         chat: room.chat,
@@ -141,15 +143,15 @@ class Server {
                         const emiRecepDesktop = {};
                         for (const key in room.usuarios) {
                             if (room.usuarios[key].id !== data.usuario.id) {
-                                let newObject = new peer_server_emisor_receptor_1.PeerServerEmisorReceptor(room.usuarios[key], data.usuario, null, null, new video_boton_1.VideoBoton(false, false, false, false));
-                                let newObjectDesktop = new peer_server_emisor_receptor_1.PeerServerEmisorReceptor(room.usuarios[key], data.usuario, null, null, new video_boton_1.VideoBoton(false, false, false, false));
+                                let newObject = new peer_server_emisor_receptor_1.PeerServerEmisorReceptor(room.usuarios[key], data.usuario, null, null, new video_boton_1.VideoBoton(false, false, false, false, false));
+                                let newObjectDesktop = new peer_server_emisor_receptor_1.PeerServerEmisorReceptor(room.usuarios[key], data.usuario, null, null, new video_boton_1.VideoBoton(false, false, false, false, false));
                                 emiRecep["P" + data.usuario.id + "" + room.usuarios[key].id] = newObject;
                                 emiRecepDesktop["P" + data.usuario.id + "" + room.usuarios[key].id] = newObjectDesktop;
                                 room.peerServerEmisorReceptor["P" + data.usuario.id + "" + room.usuarios[key].id] = newObject;
                                 room.peerServerEmisorReceptorDesktop["P" + data.usuario.id + "" + room.usuarios[key].id] = newObjectDesktop;
                             }
                         }
-                        socket.broadcast.emit("addUsuario", {
+                        socket.to(id).emit("addUsuario", {
                             id: room.id,
                             usuario: data.usuario,
                             chat: room.chat,
@@ -169,20 +171,22 @@ class Server {
      * @param id
      */
     safeJoin(socket, idAntes, id) {
-        socket.leave(idAntes);
+        socket.leave(idAntes.id);
         socket.join(id);
-        idAntes = id;
+        idAntes.id = id;
     }
     /**
      * función principal para iniciar la escucha socket io
      */
     listen() {
         this.io.on("connection", (socket) => {
-            const idAntes = "";
+            const idAntes = { id: '' };
             this.livingRoom(socket, idAntes);
             this.connectionPeer(socket, idAntes);
             this.paginacionPPT(socket, idAntes);
             this.chatMessage(socket, idAntes);
+            this.recibirBotonesS(socket, idAntes);
+            this.controlesUsuarios(socket, idAntes);
         });
     }
     /**
@@ -191,20 +195,20 @@ class Server {
      */
     connectionPeer(socket, idAntes) {
         socket.on("addIceCandidate", (data) => {
-            this.safeJoin(socket, idAntes, data.id);
-            socket.to(data.usuarioOrigen.socket).emit("addIceCandidate", data);
+            // this.safeJoin(socket, idAntes, data.id);
+            this.io.to(data.usuarioOrigen.socket).emit("addIceCandidate", data);
         });
         socket.on("createAnswer", (data) => {
-            this.safeJoin(socket, idAntes, data.id);
-            socket.to(data.usuarioDestino.socket).emit("createAnswer", data);
+            // this.safeJoin(socket, idAntes, data.id);
+            this.io.to(data.usuarioDestino.socket).emit("createAnswer", data);
         });
         socket.on("sendAnswer", (data) => {
-            this.safeJoin(socket, idAntes, data.id);
-            socket.to(data.usuarioDestino.socket).emit("sendAnswer", data);
+            // this.safeJoin(socket, idAntes, data.id);
+            this.io.to(data.usuarioDestino.socket).emit("sendAnswer", data);
         });
         socket.on("connectStateS", (data) => {
-            this.safeJoin(socket, idAntes, data.id);
-            socket.to(data.usuarioOrigen.socket).emit("connectState", {
+            // this.safeJoin(socket, idAntes, data.id);
+            this.io.to(data.usuarioOrigen.socket).emit("connectState", {
                 peerServerEmisorReceptor: data.peerServerEmisorReceptor,
                 peerServerEmisorReceptorDesktop: data.peerServerEmisorReceptorDesktop,
             });
@@ -216,20 +220,35 @@ class Server {
      */
     paginacionPPT(socket, idAntes) {
         socket.on("recibePaginationS", (data) => {
-            this.safeJoin(socket, idAntes, data.id);
-            socket.broadcast.emit("recibePaginationC", data.ppt);
+            // this.safeJoin(socket, idAntes, data.id);
+            socket.to(data.id).emit("recibePaginationC", data.ppt);
         });
         socket.on("eliminarPPTS", (data) => {
             delete this.rooms[data.id].ppts[data.key];
-            this.safeJoin(socket, idAntes, data.id);
-            socket.broadcast.emit("eliminarPPTC", data.ppt);
+            // this.safeJoin(socket, idAntes, data.id);
+            socket.to(data.id).emit("eliminarPPTC", data.ppt);
         });
     }
     chatMessage(socket, idAntes) {
         socket.on("chatMessageS", (data) => {
-            this.safeJoin(socket, idAntes, data.id);
+            // this.safeJoin(socket, idAntes, data.id);
             this.rooms[data.id].chat.push(data.chat);
-            socket.emit("chatMessageC", data);
+            this.io.in(data.id).emit("chatMessageC", data);
+        });
+    }
+    recibirBotonesS(socket, idAntes) {
+        socket.on("recibirBotonesS", (data) => {
+            // this.safeJoin(socket, idAntes, data.id);
+            this.rooms[data.id].usuarios[data.usuario.id].boton = data.usuario.boton;
+            console.log(this.rooms[data.id].usuarios[data.usuario.id].boton);
+            console.log(data.id);
+            this.io.in(this.rooms[data.id].id).emit("enviarBotonesC", data);
+        });
+    }
+    controlesUsuarios(socket, idAntes) {
+        socket.on("recibirControlesS", (data) => {
+            // this.safeJoin(socket, idAntes, data.id);
+            this.io.to(this.rooms[data.id].usuarios[data.usuario.id].socket).emit("enviarControlesS", data);
         });
     }
 }

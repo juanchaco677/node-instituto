@@ -2,7 +2,6 @@ import { Routes } from "./routes";
 import { PeerServerEmisorReceptor } from "./src/model/peer-server-emisor-receptor";
 import { Util } from "./src/util";
 import { Usuario } from "./src/model/usuario";
-
 import { Room } from "./src/model/room";
 import { VideoBoton } from "./src/model/video-boton";
 export class Server {
@@ -99,7 +98,7 @@ export class Server {
    * función que contiene la logica para el ingreso de usuarios a los room
    * @param socket
    */
-  livingRoom(socket: any, idAntes: string) {
+  livingRoom(socket: any, idAntes: any) {
     socket.on("livingRoom", (data: any) => {
       if (data.usuario.rol.tipo === "ES" || data.usuario.rol.tipo === "PR") {
         const id =
@@ -130,20 +129,28 @@ export class Server {
                 room.peerServerEmisorReceptor[key].usuario2,
                 null,
                 null,
-                new VideoBoton(false, false, false, false)
+                new VideoBoton(false, false, false, false, false)
               );
               let newObjectDesktop = new PeerServerEmisorReceptor(
                 room.peerServerEmisorReceptor[key].usuario1,
                 room.peerServerEmisorReceptor[key].usuario2,
                 null,
                 null,
-                new VideoBoton(false, false, false, false)
+                new VideoBoton(false, false, false, false, false)
               );
               emiRecep[key] = newObject;
               emiRecepDesktop[key] = newObjectDesktop;
             }
           }
-          socket.broadcast.emit("addUsuario", {
+          let boton = this.rooms[id].usuarios[data.usuario.id].boton;
+          this.rooms[id].usuarios[data.usuario.id].boton = new VideoBoton(
+            false,
+            false,
+            false,
+            false,
+            boton.mano
+          );
+          socket.to(id).emit("addUsuario", {
             id: room.id,
             usuario: data.usuario,
             chat: room.chat,
@@ -160,7 +167,7 @@ export class Server {
               Math.floor(Math.random() * 17 + 1)
             ];
             room.usuarios[data.usuario.id] = data.usuario;
-            this.safeJoin(socket, idAntes, id);
+            this.safeJoin(socket, idAntes, id);        
             const emiRecep = {};
             const emiRecepDesktop = {};
             for (const key in room.usuarios) {
@@ -170,14 +177,14 @@ export class Server {
                   data.usuario,
                   null,
                   null,
-                  new VideoBoton(false, false, false, false)
+                  new VideoBoton(false, false, false, false, false)
                 );
                 let newObjectDesktop = new PeerServerEmisorReceptor(
                   room.usuarios[key],
                   data.usuario,
                   null,
                   null,
-                  new VideoBoton(false, false, false, false)
+                  new VideoBoton(false, false, false, false, false)
                 );
                 emiRecep[
                   "P" + data.usuario.id + "" + room.usuarios[key].id
@@ -193,7 +200,7 @@ export class Server {
                 ] = newObjectDesktop;
               }
             }
-            socket.broadcast.emit("addUsuario", {
+            socket.to(id).emit("addUsuario", {
               id: room.id,
               usuario: data.usuario,
               chat: room.chat,
@@ -214,10 +221,10 @@ export class Server {
    * @param socket
    * @param id
    */
-  safeJoin(socket: any, idAntes: string, id: string) {
-    socket.leave(idAntes);
+  safeJoin(socket: any, idAntes: any, id: string) {
+    socket.leave(idAntes.id);
     socket.join(id);
-    idAntes = id;
+    idAntes.id = id;
   }
 
   /**
@@ -225,11 +232,13 @@ export class Server {
    */
   listen() {
     this.io.on("connection", (socket: any) => {
-      const idAntes = "";
+      const idAntes = {id:''};
       this.livingRoom(socket, idAntes);
       this.connectionPeer(socket, idAntes);
       this.paginacionPPT(socket, idAntes);
       this.chatMessage(socket, idAntes);
+      this.recibirBotonesS(socket, idAntes);
+      this.controlesUsuarios(socket, idAntes);
     });
   }
 
@@ -237,25 +246,25 @@ export class Server {
    * hilos de escucha para las conexiones rtc peer
    * @param socket
    */
-  connectionPeer(socket: any, idAntes: string) {
+  connectionPeer(socket: any, idAntes: any) {
     socket.on("addIceCandidate", (data: any) => {
-      this.safeJoin(socket, idAntes, data.id);
-      socket.to(data.usuarioOrigen.socket).emit("addIceCandidate", data);
+      // this.safeJoin(socket, idAntes, data.id);
+      this.io.to(data.usuarioOrigen.socket).emit("addIceCandidate", data);
     });
 
     socket.on("createAnswer", (data: any) => {
-      this.safeJoin(socket, idAntes, data.id);
-      socket.to(data.usuarioDestino.socket).emit("createAnswer", data);
+      // this.safeJoin(socket, idAntes, data.id);
+      this.io.to(data.usuarioDestino.socket).emit("createAnswer", data);
     });
 
     socket.on("sendAnswer", (data: any) => {
-      this.safeJoin(socket, idAntes, data.id);
-      socket.to(data.usuarioDestino.socket).emit("sendAnswer", data);
+      // this.safeJoin(socket, idAntes, data.id);
+      this.io.to(data.usuarioDestino.socket).emit("sendAnswer", data);
     });
 
     socket.on("connectStateS", (data: any) => {
-      this.safeJoin(socket, idAntes, data.id);
-      socket.to(data.usuarioOrigen.socket).emit("connectState", {
+      // this.safeJoin(socket, idAntes, data.id);
+      this.io.to(data.usuarioOrigen.socket).emit("connectState", {
         peerServerEmisorReceptor: data.peerServerEmisorReceptor,
         peerServerEmisorReceptorDesktop: data.peerServerEmisorReceptorDesktop,
       });
@@ -268,22 +277,37 @@ export class Server {
    */
   paginacionPPT(socket: any, idAntes: any) {
     socket.on("recibePaginationS", (data: any) => {
-      this.safeJoin(socket, idAntes, data.id);
-      socket.broadcast.emit("recibePaginationC", data.ppt);
+      // this.safeJoin(socket, idAntes, data.id);
+      socket.to(data.id).emit("recibePaginationC", data.ppt);
     });
 
     socket.on("eliminarPPTS", (data: any) => {
       delete this.rooms[data.id].ppts[data.key];
-      this.safeJoin(socket, idAntes, data.id);
-      socket.broadcast.emit("eliminarPPTC", data.ppt);
+      // this.safeJoin(socket, idAntes, data.id);
+      socket.to(data.id).emit("eliminarPPTC", data.ppt);
     });
   }
 
-  chatMessage(socket: any, idAntes: string) {
+  chatMessage(socket: any, idAntes: any) {
     socket.on("chatMessageS", (data: any) => {
-      this.safeJoin(socket, idAntes, data.id);
+      // this.safeJoin(socket, idAntes, data.id);
       this.rooms[data.id].chat.push(data.chat);
-      socket.emit("chatMessageC", data);
+      this.io.in(data.id).emit("chatMessageC", data);
+    });
+  }
+
+  recibirBotonesS(socket: any, idAntes: any) {
+    socket.on("recibirBotonesS", (data: any) => {
+      // this.safeJoin(socket, idAntes, data.id);
+      this.rooms[data.id].usuarios[data.usuario.id].boton = data.usuario.boton; 
+      this.io.in(this.rooms[data.id].id).emit("enviarBotonesC", data);
+    });
+  }
+
+  controlesUsuarios(socket: any, idAntes: any) {
+    socket.on("recibirControlesS", (data: any) => {
+      // this.safeJoin(socket, idAntes, data.id);
+      this.io.to(this.rooms[data.id].usuarios[data.usuario.id].socket).emit("enviarControlesS", data);
     });
   }
 }
