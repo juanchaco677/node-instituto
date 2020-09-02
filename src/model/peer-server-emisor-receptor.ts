@@ -11,6 +11,7 @@ export class PeerServerEmisorReceptor {
     public peerServer?: PeerServer,
     public peerClient?: PeerClient,
     public videoBoton?: VideoBoton,
+    public prioridad?: number,
   ) {
   }
 }

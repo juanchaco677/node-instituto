@@ -1,11 +1,12 @@
+import { PeerClient } from "./src/model/peer-client";
 import { Routes } from "./routes";
 import { PeerServerEmisorReceptor } from "./src/model/peer-server-emisor-receptor";
 import { Util } from "./src/util";
 import { Usuario } from "./src/model/usuario";
 import { Room } from "./src/model/room";
 import { VideoBoton } from "./src/model/video-boton";
+import { PeerServer } from "./src/model/peer-server";
 export class Server {
-  path = require("path");
   cors = require("cors");
   app = require("express")();
   http = require("http").Server(this.app);
@@ -89,7 +90,7 @@ export class Server {
    * @param id
    */
   createRoom(id: string) {
-    const room = new Room(id, {}, [], {}, {}, {});
+    const room = new Room(id, {}, [], {}, {}, {}, {});
     this.rooms[id] = room;
     return room;
   }
@@ -167,7 +168,7 @@ export class Server {
               Math.floor(Math.random() * 17 + 1)
             ];
             room.usuarios[data.usuario.id] = data.usuario;
-            this.safeJoin(socket, idAntes, id);        
+            this.safeJoin(socket, idAntes, id);
             const emiRecep = {};
             const emiRecepDesktop = {};
             for (const key in room.usuarios) {
@@ -210,6 +211,7 @@ export class Server {
             });
 
             socket.emit("room", room);
+            console.log("nuevo...");
           }
         }
       }
@@ -232,14 +234,53 @@ export class Server {
    */
   listen() {
     this.io.on("connection", (socket: any) => {
-      const idAntes = {id:''};
+      const idAntes = { id: "" };
       this.livingRoom(socket, idAntes);
       this.connectionPeer(socket, idAntes);
       this.paginacionPPT(socket, idAntes);
       this.chatMessage(socket, idAntes);
       this.recibirBotonesS(socket, idAntes);
       this.controlesUsuarios(socket, idAntes);
+      this.closeUser(socket);
     });
+  }
+
+  async createAnswer(socket: any, data: any) {
+    if (data.data.type === "offer") {
+      const peerClient = new PeerClient();
+      await peerClient.createAnswer(data.data);
+      this.rooms[data.id].peerRecord[1].peerClient = peerClient;
+      this.rooms[data.id].peerRecord[1].peerServer = new PeerServer();
+      this.rooms[data.id].peerRecord[1].peerClient.peerConnection.ontrack = (
+        ev: any
+      ) => {
+        if (ev.streams && ev.streams.length > 0) {
+          for (const element of ev.streams) {
+            console.log("reciviendo stream");
+          }
+        } else {
+          const inboundStream = new MediaStream(ev.track);
+          console.log("reciviendo stream");
+        }
+      };
+      socket.emit("sendAnswer", {
+        data: this.rooms[data.id].peerRecord[1].peerClient.peerClient
+          .localDescription,
+        id: data.id.id,
+        camDesktop: data.camDesktop,
+        record: data.record,
+        usuarioOrigen: data.usuarioOrigen,
+        usuarioDestino: data.usuarioDestino,
+      });
+    } else {
+      if (data.data.candidate) {
+        await this.rooms[
+          data.id
+        ].peerRecord[1].peerClient[1].peerClient.peerConnection.addIceCandidate(
+          data.data
+        );
+      }
+    }
   }
 
   /**
@@ -247,27 +288,18 @@ export class Server {
    * @param socket
    */
   connectionPeer(socket: any, idAntes: any) {
-    socket.on("addIceCandidate", (data: any) => {
-      // this.safeJoin(socket, idAntes, data.id);
-      this.io.to(data.usuarioOrigen.socket).emit("addIceCandidate", data);
-    });
-
     socket.on("createAnswer", (data: any) => {
       // this.safeJoin(socket, idAntes, data.id);
-      this.io.to(data.usuarioDestino.socket).emit("createAnswer", data);
+      if (!Util.empty(data.record) && data.record) {
+        this.createAnswer(socket, data);
+      } else {
+        this.io.to(data.usuarioDestino.socket).emit("createAnswer", data);
+      }
     });
 
     socket.on("sendAnswer", (data: any) => {
       // this.safeJoin(socket, idAntes, data.id);
       this.io.to(data.usuarioDestino.socket).emit("sendAnswer", data);
-    });
-
-    socket.on("connectStateS", (data: any) => {
-      // this.safeJoin(socket, idAntes, data.id);
-      this.io.to(data.usuarioOrigen.socket).emit("connectState", {
-        peerServerEmisorReceptor: data.peerServerEmisorReceptor,
-        peerServerEmisorReceptorDesktop: data.peerServerEmisorReceptorDesktop,
-      });
     });
   }
 
@@ -299,7 +331,7 @@ export class Server {
   recibirBotonesS(socket: any, idAntes: any) {
     socket.on("recibirBotonesS", (data: any) => {
       // this.safeJoin(socket, idAntes, data.id);
-      this.rooms[data.id].usuarios[data.usuario.id].boton = data.usuario.boton; 
+      this.rooms[data.id].usuarios[data.usuario.id].boton = data.usuario.boton;
       this.io.in(this.rooms[data.id].id).emit("enviarBotonesC", data);
     });
   }
@@ -307,7 +339,41 @@ export class Server {
   controlesUsuarios(socket: any, idAntes: any) {
     socket.on("recibirControlesS", (data: any) => {
       // this.safeJoin(socket, idAntes, data.id);
-      this.io.to(this.rooms[data.id].usuarios[data.usuario.id].socket).emit("enviarControlesS", data);
+      this.io
+        .to(this.rooms[data.id].usuarios[data.usuario.id].socket)
+        .emit("enviarControlesS", data);
+    });
+  }
+
+  closeUser(socket: any) {
+    socket.on("closeUserS", (data: any) => {
+      for (const key in this.rooms[data.id].usuarios) {
+        if (this.rooms[data.id].usuarios[key].id === data.usuario.id) {
+          delete this.rooms[data.id].usuarios[key];
+        }
+      }
+      for (const key in this.rooms[data.id].peerServerEmisorReceptor) {
+        if (
+          this.rooms[data.id].peerServerEmisorReceptor[key].usuario1.id ===
+            data.usuario.id ||
+          this.rooms[data.id].peerServerEmisorReceptor[key].usuario2.id ===
+            data.usuario.id
+        ) {
+          delete this.rooms[data.id].peerServerEmisorReceptor[key];
+        }
+      }
+      for (const key in this.rooms[data.id].peerServerEmisorReceptorDesktop) {
+        if (
+          this.rooms[data.id].peerServerEmisorReceptorDesktop[key].usuario1
+            .id === data.usuario.id ||
+          this.rooms[data.id].peerServerEmisorReceptorDesktop[key].usuario2
+            .id === data.usuario.id
+        ) {
+          delete this.rooms[data.id].peerServerEmisorReceptorDesktop[key];
+        }
+      }
+      socket.to(data.id).emit("closeUserC", data);
+      socket.disconnect();
     });
   }
 }

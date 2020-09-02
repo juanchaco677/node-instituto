@@ -8,7 +8,6 @@ const room_1 = require("./src/model/room");
 const video_boton_1 = require("./src/model/video-boton");
 class Server {
     constructor() {
-        this.path = require("path");
         this.cors = require("cors");
         this.app = require("express")();
         this.http = require("http").Server(this.app);
@@ -160,6 +159,7 @@ class Server {
                             peerServerEmisorReceptorDesktop: emiRecepDesktop,
                         });
                         socket.emit("room", room);
+                        console.log('nuevo...');
                     }
                 }
             }
@@ -187,6 +187,7 @@ class Server {
             this.chatMessage(socket, idAntes);
             this.recibirBotonesS(socket, idAntes);
             this.controlesUsuarios(socket, idAntes);
+            this.closeUser(socket);
         });
     }
     /**
@@ -240,8 +241,6 @@ class Server {
         socket.on("recibirBotonesS", (data) => {
             // this.safeJoin(socket, idAntes, data.id);
             this.rooms[data.id].usuarios[data.usuario.id].boton = data.usuario.boton;
-            console.log(this.rooms[data.id].usuarios[data.usuario.id].boton);
-            console.log(data.id);
             this.io.in(this.rooms[data.id].id).emit("enviarBotonesC", data);
         });
     }
@@ -249,6 +248,29 @@ class Server {
         socket.on("recibirControlesS", (data) => {
             // this.safeJoin(socket, idAntes, data.id);
             this.io.to(this.rooms[data.id].usuarios[data.usuario.id].socket).emit("enviarControlesS", data);
+        });
+    }
+    closeUser(socket) {
+        socket.on("closeUserS", (data) => {
+            for (const key in this.rooms[data.id].usuarios) {
+                if (this.rooms[data.id].usuarios[key].id === data.usuario.id) {
+                    delete this.rooms[data.id].usuarios[key];
+                }
+            }
+            for (const key in this.rooms[data.id].peerServerEmisorReceptor) {
+                if (this.rooms[data.id].peerServerEmisorReceptor[key].usuario1.id === data.usuario.id ||
+                    this.rooms[data.id].peerServerEmisorReceptor[key].usuario2.id === data.usuario.id) {
+                    delete this.rooms[data.id].peerServerEmisorReceptor[key];
+                }
+            }
+            for (const key in this.rooms[data.id].peerServerEmisorReceptorDesktop) {
+                if (this.rooms[data.id].peerServerEmisorReceptorDesktop[key].usuario1.id === data.usuario.id ||
+                    this.rooms[data.id].peerServerEmisorReceptorDesktop[key].usuario2.id === data.usuario.id) {
+                    delete this.rooms[data.id].peerServerEmisorReceptorDesktop[key];
+                }
+            }
+            socket.to(data.id).emit("closeUserC", data);
+            socket.disconnect();
         });
     }
 }

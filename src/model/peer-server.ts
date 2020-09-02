@@ -1,30 +1,52 @@
-var SimplePeer = require('simple-peer')
-var wrtc = require('wrtc')
 export class PeerServer {
-  peerConnection: any;
-  answer: any;
+  config = {
+    iceServers: [
+      {
+        urls: 'stun:181.55.192.137:3478',
+        username: 'cony',
+        password: 'juancamilo65',
+      },
+    ],
+    sdpSemantics: 'plan-b',
+  };
+  peerConnection: RTCPeerConnection;
   offer: any;
+  dataChannel: any;
+  localDescription: any;
+  receiveChannel: any;
   constructor() {
-    this.peerConnection = new SimplePeer({ initiator: true, wrtc: wrtc });
+    this.peerConnection = new RTCPeerConnection(this.config);
   }
 
-  createOffer() {
-    this.peerConnection.on('signal', (data: any) => {
-      this.offer = data;
-    });
+  async createOffer() {
+    // try {
+      await this.peerConnection.setLocalDescription(
+        await this.peerConnection.createOffer()
+      );
+      this.localDescription = this.peerConnection.localDescription;
+    // } catch (error) {}
   }
 
-  sendData(data: any){
-    this.peerConnection.on('connect', () => {
-      // wait for 'connect' event before using the data channel
-      this.peerConnection.send(data);
-    });
+  async addAnswer(localDescription: any) {
+    // try {
+      await this.peerConnection.setRemoteDescription(localDescription);
+    // } catch (error) {}
   }
 
-  async reciveData(){
-    this.peerConnection.on('data', async (data: any ) => {
-      console.log('recive peer 2 data : ' + data);
-      return data;
-    });
+  createDataChannel(nameChannel: string) {
+    this.dataChannel = this.peerConnection.createDataChannel(nameChannel);
+  }
+
+  send(data: any) {
+    this.dataChannel.send(data);
+  }
+
+  closeDataChannel() {
+    this.dataChannel.close();
+  }
+
+
+  close() {
+    this.peerConnection.close();
   }
 }
