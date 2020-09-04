@@ -1,3 +1,4 @@
+
 export class PeerServer {
   config = {
     iceServers: [
@@ -9,7 +10,7 @@ export class PeerServer {
     ],
     sdpSemantics: 'plan-b',
   };
-  peerConnection: RTCPeerConnection;
+  peerConnection: webkitRTCPeerConnection;
   offer: any;
   dataChannel: any;
   localDescription: any;

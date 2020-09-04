@@ -1,3 +1,4 @@
+
 export class PeerClient {
   config = {
     iceServers: [
@@ -15,7 +16,7 @@ export class PeerClient {
   dataChannel: any;
   localDescription: any;
   constructor() {
-    this.peerConnection = new RTCPeerConnection(this.config);
+    this.peerConnection = new RTCPeerConnection();
   }
 
   addStreamVideo(stream: any, track: any) {

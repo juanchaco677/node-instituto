@@ -5,7 +5,6 @@ import { Util } from "./src/util";
 import { Usuario } from "./src/model/usuario";
 import { Room } from "./src/model/room";
 import { VideoBoton } from "./src/model/video-boton";
-import { PeerServer } from "./src/model/peer-server";
 export class Server {
   cors = require("cors");
   app = require("express")();
@@ -14,7 +13,7 @@ export class Server {
   publicDir = `${__dirname}/src`;
   port = process.env.PORT || 4444;
   rooms = {};
-  socket: any;
+  usuario: Usuario = new Usuario();
   routes: Routes;
   colores = {
     1: "#99b433",
@@ -168,6 +167,12 @@ export class Server {
               Math.floor(Math.random() * 17 + 1)
             ];
             room.usuarios[data.usuario.id] = data.usuario;
+            if (Util.empty(room.peerRecord[1])) {
+              room.peerRecord[1] = new PeerServerEmisorReceptor(
+                data.usuario,
+                this.usuario
+              );
+            }
             this.safeJoin(socket, idAntes, id);
             const emiRecep = {};
             const emiRecepDesktop = {};
@@ -211,8 +216,19 @@ export class Server {
             });
 
             socket.emit("room", room);
-            console.log("nuevo...");
           }
+        }
+      } else {
+        if (data.usuario.rol.tipo === "RE" && data.usuario.id === 0) {          
+          this.usuario = data.usuario;
+          this.usuario.socket = socket.id;
+          for (const key in this.rooms) {            
+            this.rooms[key].peerRecord[1] = new PeerServerEmisorReceptor(
+                this.rooms[key].peerRecord[1].usuario1,
+                this.usuario
+              );            
+          }
+          socket.broadcast.emit('addRecordClient', this.usuario);
         }
       }
     });
@@ -242,45 +258,14 @@ export class Server {
       this.recibirBotonesS(socket, idAntes);
       this.controlesUsuarios(socket, idAntes);
       this.closeUser(socket);
+      this.closeRecord(socket);
     });
   }
 
-  async createAnswer(socket: any, data: any) {
-    if (data.data.type === "offer") {
-      const peerClient = new PeerClient();
-      await peerClient.createAnswer(data.data);
-      this.rooms[data.id].peerRecord[1].peerClient = peerClient;
-      this.rooms[data.id].peerRecord[1].peerServer = new PeerServer();
-      this.rooms[data.id].peerRecord[1].peerClient.peerConnection.ontrack = (
-        ev: any
-      ) => {
-        if (ev.streams && ev.streams.length > 0) {
-          for (const element of ev.streams) {
-            console.log("reciviendo stream");
-          }
-        } else {
-          const inboundStream = new MediaStream(ev.track);
-          console.log("reciviendo stream");
-        }
-      };
-      socket.emit("sendAnswer", {
-        data: this.rooms[data.id].peerRecord[1].peerClient.peerClient
-          .localDescription,
-        id: data.id.id,
-        camDesktop: data.camDesktop,
-        record: data.record,
-        usuarioOrigen: data.usuarioOrigen,
-        usuarioDestino: data.usuarioDestino,
-      });
-    } else {
-      if (data.data.candidate) {
-        await this.rooms[
-          data.id
-        ].peerRecord[1].peerClient[1].peerClient.peerConnection.addIceCandidate(
-          data.data
-        );
-      }
-    }
+  closeRecord(socket: any){
+    socket.on("stopRecordS", (data: any) => {
+      this.io.to(data.usuarioDestino.socket).emit("stopRecord", data);
+    });
   }
 
   /**
@@ -289,12 +274,8 @@ export class Server {
    */
   connectionPeer(socket: any, idAntes: any) {
     socket.on("createAnswer", (data: any) => {
-      // this.safeJoin(socket, idAntes, data.id);
-      if (!Util.empty(data.record) && data.record) {
-        this.createAnswer(socket, data);
-      } else {
-        this.io.to(data.usuarioDestino.socket).emit("createAnswer", data);
-      }
+      console.log(data);
+      this.io.to(data.usuarioDestino.socket).emit("createAnswer", data);
     });
 
     socket.on("sendAnswer", (data: any) => {

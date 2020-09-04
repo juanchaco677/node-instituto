@@ -2,30 +2,46 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.PeerClient = void 0;
 const tslib_1 = require("tslib");
-var SimplePeer = require('simple-peer');
-var wrtc = require('wrtc');
 class PeerClient {
     constructor() {
-        this.peerConnection = new SimplePeer({ wrtc: wrtc });
+        this.config = {
+            iceServers: [
+                {
+                    urls: 'stun:181.55.192.137:3478',
+                    username: 'cony',
+                    password: 'juancamilo65',
+                },
+            ],
+            sdpSemantics: 'plan-b',
+        };
+        this.peerConnection = new RTCPeerConnection();
     }
-    createAnswer() {
-        this.peerConnection.on('signal', (data) => {
-            this.offer = data;
-        });
+    addStreamVideo(stream, track) {
+        this.peerConnection.addTrack(track, stream);
     }
-    sendData(data) {
-        this.peerConnection.on('connect', () => {
-            // wait for 'connect' event before using the data channel
-            this.peerConnection.send(data);
-        });
-    }
-    reciveData() {
+    createAnswer(localDescription) {
         return tslib_1.__awaiter(this, void 0, void 0, function* () {
-            this.peerConnection.on('data', (data) => tslib_1.__awaiter(this, void 0, void 0, function* () {
-                console.log('recive peer 2 data : ' + data);
-                return data;
-            }));
+            // try {
+            yield this.peerConnection.setRemoteDescription(localDescription);
+            yield this.peerConnection.setLocalDescription(yield this.peerConnection.createAnswer());
+            this.localDescription = this.peerConnection.localDescription;
+            // } catch (error) {}
         });
+    }
+    createDataChannel(nameChannel) {
+        this.dataChannel = this.peerConnection.createDataChannel(nameChannel);
+    }
+    send(data) {
+        this.dataChannel.send(data);
+    }
+    closeSendDataChannel() {
+        this.dataChannel.close();
+    }
+    closeReciveDataChannel() {
+        this.receiveChannel.close();
+    }
+    close() {
+        this.peerConnection.close();
     }
 }
 exports.PeerClient = PeerClient;
