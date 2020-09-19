@@ -87,7 +87,7 @@ class Server {
      * @param id
      */
     createRoom(id) {
-        const room = new room_1.Room(id, {}, [], {}, {}, {}, {});
+        const room = new room_1.Room(id, {}, [], {}, {}, {}, {}, {});
         this.rooms[id] = room;
         return room;
     }
@@ -100,7 +100,7 @@ class Server {
             if (data.usuario.rol.tipo === "ES" || data.usuario.rol.tipo === "PR") {
                 const id = data.programacion.id +
                     "" +
-                    data.programacion.asig_profe_asig.salon.id;
+                    data.programacion.salon.id;
                 let room = this.getRoom(id);
                 if (util_1.Util.empty(room)) {
                     room = this.createRoom(id);
@@ -216,7 +216,6 @@ class Server {
      */
     connectionPeer(socket, idAntes) {
         socket.on("createAnswer", (data) => {
-            console.log(data);
             this.io.to(data.usuarioDestino.socket).emit("createAnswer", data);
         });
         socket.on("sendAnswer", (data) => {
@@ -286,6 +285,12 @@ class Server {
             }
             socket.to(data.id).emit("closeUserC", data);
             socket.disconnect();
+        });
+    }
+    archivosBiblioteca(socket) {
+        socket.on("archivosBibliotecaS", (data) => {
+            this.rooms[data.id].videos[data.biblioteca.id] = data.biblioteca;
+            socket.to(data.id).emit("archivosBibliotecaC", data);
         });
     }
 }

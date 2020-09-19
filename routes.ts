@@ -72,19 +72,22 @@ export class Routes {
               if (err) {
                 res.json({ success: false });
               } else {
+                const totalPaginas = parseInt(stdout.replace(/\n|\r/g, "")) - 1;
                 const ppt = new PPT(
                   nombre,
                   0,
                   0,
                   0,
                   0,
-                  parseInt(stdout.replace(/\n|\r/g, "")) - 1,
+                  totalPaginas,
                   JSON.parse(req.body.integrantes),
                   JSON.parse(req.body.permisos).todos
                 );
                 res.json({
                   success: true,
                   file: ppt,
+                  nombreExtension,
+                  totalPaginas
                 });
                 this.rooms[req.body.id].ppts[ppt.nombre] = ppt;
                 this.io.in(this.rooms[req.body.id].id).emit("archivoPpt", ppt);

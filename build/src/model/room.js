@@ -2,7 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.Room = void 0;
 class Room {
-    constructor(id, usuarios, chat, ppts, peerServerEmisorReceptor, peerServerEmisorReceptorDesktop, peerRecord) {
+    constructor(id, usuarios, chat, ppts, peerServerEmisorReceptor, peerServerEmisorReceptorDesktop, peerRecord, videos) {
         this.id = id;
         this.usuarios = usuarios;
         this.chat = chat;
@@ -10,6 +10,7 @@ class Room {
         this.peerServerEmisorReceptor = peerServerEmisorReceptor;
         this.peerServerEmisorReceptorDesktop = peerServerEmisorReceptorDesktop;
         this.peerRecord = peerRecord;
+        this.videos = videos;
     }
 }
 exports.Room = Room;

@@ -89,7 +89,7 @@ export class Server {
    * @param id
    */
   createRoom(id: string) {
-    const room = new Room(id, {}, [], {}, {}, {}, {});
+    const room = new Room(id, {}, [], {}, {}, {}, {}, {});
     this.rooms[id] = room;
     return room;
   }
@@ -104,7 +104,7 @@ export class Server {
         const id =
           data.programacion.id +
           "" +
-          data.programacion.asig_profe_asig.salon.id;
+          data.programacion.salon.id;
 
         let room = this.getRoom(id);
 
@@ -274,7 +274,6 @@ export class Server {
    */
   connectionPeer(socket: any, idAntes: any) {
     socket.on("createAnswer", (data: any) => {
-      console.log(data);
       this.io.to(data.usuarioDestino.socket).emit("createAnswer", data);
     });
 
@@ -355,6 +354,13 @@ export class Server {
       }
       socket.to(data.id).emit("closeUserC", data);
       socket.disconnect();
+    });
+  }
+
+  archivosBiblioteca(socket: any) {
+    socket.on("archivosBibliotecaS", (data: any) => {
+      this.rooms[data.id].videos[data.biblioteca.id] = data.biblioteca;      
+      socket.to(data.id).emit("archivosBibliotecaC", data);
     });
   }
 }
