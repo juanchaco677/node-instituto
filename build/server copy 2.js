@@ -100,9 +100,7 @@ class Server {
      */
     livingRoom(socket, idAntes) {
         socket.on("livingRoom", (data) => {
-            console.log('....usuario conectado....');
-            console.log(data.usuario.nombre);
-            console.log('.........................');
+            console.log('entro');
             if (data.usuario.rol.tipo === "ES" || data.usuario.rol.tipo === "PR") {
                 const id = data.programacion.id +
                     "" +
@@ -222,10 +220,34 @@ class Server {
      */
     connectionPeer(socket, idAntes) {
         socket.on("createAnswer", (data) => {
-            this.io.to(this.rooms[data.id].usuarios[data.usuarioDestino.id].socket).emit("createAnswer", data);
+            let sockeID = null;
+            if (!data.record || util_1.Util.empty(data.record)) {
+                if (this.rooms[data.id].peerServerEmisorReceptor[data.key].usuario1.id === data.usuarioDestino.id) {
+                    sockeID = this.rooms[data.id].peerServerEmisorReceptor[data.key].usuario1.socket;
+                }
+                else {
+                    sockeID = this.rooms[data.id].peerServerEmisorReceptor[data.key].usuario2.socket;
+                }
+            }
+            else {
+                sockeID = data.usuarioDestino.socket;
+            }
+            this.io.to(sockeID).emit("createAnswer", data);
         });
         socket.on("sendAnswer", (data) => {
-            this.io.to(this.rooms[data.id].usuarios[data.usuarioDestino.id].socket).emit("sendAnswer", data);
+            let sockeID = null;
+            if (!data.record || util_1.Util.empty(data.record)) {
+                if (this.rooms[data.id].peerServerEmisorReceptor[data.key].usuario1.id === data.usuarioDestino.id) {
+                    sockeID = this.rooms[data.id].peerServerEmisorReceptor[data.key].usuario1.socket;
+                }
+                else {
+                    sockeID = this.rooms[data.id].peerServerEmisorReceptor[data.key].usuario2.socket;
+                }
+            }
+            else {
+                sockeID = data.usuarioDestino.socket;
+            }
+            this.io.to(sockeID).emit("sendAnswer", data);
         });
     }
     /**
@@ -300,4 +322,4 @@ class Server {
     }
 }
 exports.Server = Server;
-//# sourceMappingURL=server.js.map
+//# sourceMappingURL=server copy 2.js.map

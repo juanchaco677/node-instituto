@@ -34,6 +34,11 @@ export class Routes {
       .post(this.upload.single("file-ppt"), (req: any, res: any, next: any) =>
         this.postFiles(req, res, next)
       );
+      this.router
+      .route("/")
+      .get((req: any, res: any) =>
+        res.send('Bienvenido, hola mundo')
+      );
   }
 
   postFiles(req: any, res: any, next: any) {

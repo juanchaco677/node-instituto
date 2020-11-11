@@ -26,6 +26,9 @@ class Routes {
         this.router
             .route("/api/upload-ppt")
             .post(this.upload.single("file-ppt"), (req, res, next) => this.postFiles(req, res, next));
+        this.router
+            .route("/")
+            .get((req, res) => res.send('Bienvenido, hola mundo'));
     }
     postFiles(req, res, next) {
         if (req.file !== undefined &&
